@@ -1,0 +1,22 @@
+*.out
+*.diff
+*.o
+*.d
+.*.swp
+tags
+
+# these are usually my typos in saving files
+;
+;w
+2
+3
+
+# user programs
+user/login
+user/shell
+user/cat
+user/ls
+user/echo
+user/shutdown
+user/sha1hash
+user/test
