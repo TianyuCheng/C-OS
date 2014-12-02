@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
     char buffer[16];
 
     struct file_stat stats;
-    while (read(file, buffer, 16) == 16) {
+    while (readFully(file, buffer, 16) == 16) {
         buffer[12] = '\0';
         if (flagL) {
             /* list mode*/

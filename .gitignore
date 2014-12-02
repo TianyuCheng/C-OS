@@ -20,3 +20,6 @@ user/echo
 user/shutdown
 user/sha1hash
 user/test
+user/su
+user/cp
+user/chmod

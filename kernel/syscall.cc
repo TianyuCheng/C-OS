@@ -249,6 +249,7 @@ extern "C" long syscallHandler(uint32_t* context, long num, long a0, long a1) {
             stats->ctime = -1;
             stats->latime = -1;
             stats->lmtime = -1;
+            // Debug::printf("filetype: %u\n", stats->type);
             return 0;
         }
     case 19: /* setgid */

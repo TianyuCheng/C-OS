@@ -236,6 +236,13 @@ int main(int argc, const char *argv[]) {
 
     readConf(argv[3]);          // read and write
 
+    /* print the map */
+    for (int i = 0; i < super->nBlocks; i++) {
+        if (i % 8 == 0)
+            printf("\n[%d]\t", i);
+        printf("%d\t", fat[i]);
+    }
+
     munmap(mapStart,mapLength);
 
     return 0;

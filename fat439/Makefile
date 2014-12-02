@@ -1,4 +1,4 @@
-CFLAGS = -std=c99 -g -O3 -Wall -Werror
+CFLAGS = -std=c99 -m32 -g -O3 #-Wall #-Werror
 PROGS = mkfs
 
 #OFILES = $(subst .c,.o,$(CFILES))

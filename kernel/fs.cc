@@ -31,7 +31,7 @@ class OpenFile : public Resource {
  * User ID                  32 bits
  * Group ID                 32 bits
  * Length                   32 bits
- * Creation Time            32 bits
+ * Creation nime            32 bits
  * Last Access Time         32 bits
  * Last Modification Time   32 bits
  * Deletion Time            32 bits
@@ -99,28 +99,33 @@ public:
         uint32_t blockInFile = actualOffset / 512;
         uint32_t offsetInBlock = actualOffset % 512;
 
-        bool eof = offset == metaData.length;
-        uint32_t block = 0;
-        uint32_t blockNumber = start;
-
-        // check end-of-file
-        if (eof) { 
-            // unfortunately it seems like we have not allocated 
-            // enough blocks for this file. Therefore I am going to
-            // allocate one for it.
-            block = fs->super.avail;
-            fs->super.avail = fs->fat[block];
-            if (!block) Debug::panic("not enough disk space!");
-        }
-
+        uint32_t blockNumber = this->start;
+        // Debug::printf("==> blockNumber: %u\n", blockNumber);
+        
+        // iterate to find the block for write
         for (uint32_t i=0; i<blockInFile; i++) {
-            uint32_t tmp = fs->fat[blockNumber];
-            if (!tmp) {
-                tmp = block;
-                fs->fat[blockNumber] = block;
+            uint32_t nextBlock = fs->fat[blockNumber];
+            if (!nextBlock) {
+                if (!fs->super.avail) {
+                    /* print the map */
+                    for (uint32_t i = 0; i < fs->super.nBlocks; i++) {
+                        if (i % 16 == 0)
+                            Debug::printf("\n[%d]\t", i);
+                        Debug::printf("%d\t", fs->fat[i]);
+                    }
+                    Debug::printf("\n");
+                    Debug::panic("not enough disk space!");
+                }
+                // if we reach the end of the block list
+                nextBlock = fs->super.avail;
+                fs->super.avail = fs->fat[nextBlock];
+                fs->fat[nextBlock] = 0;
+                fs->fat[blockNumber] = nextBlock;
+                // Debug::printf("==> blockNumber: %u\tnext avail: %u\n", blockNumber, fs->super.avail);
             }
-            blockNumber  = tmp;
+            blockNumber = nextBlock;
         }
+        // Debug::printf("--> blockNumber: %u\n", blockNumber);
 
         int32_t count = fs->dev->write(blockNumber * 512 + offsetInBlock, buf, length);
 
@@ -131,16 +136,14 @@ public:
         metaData.latime = -1;         // how should I get time?
         if (newLength < metaData.length) {
             // newLength is smaller than original length, therefore I need to mark the following blocks as free
-            blockNumber = fs->fat[blockInFile];
-            uint32_t blockFileEnd = (metaData.length + sizeof(FileMetaData)) / 512;
-            for (uint32_t i = blockInFile; i < blockFileEnd; i++) {
-                uint32_t tmp = fs->fat[blockNumber];         // find next block
-
-                // mark the current block as free
-                fs->fat[blockNumber] = fs->super.avail;
-                fs->super.avail = blockNumber;
-
-                blockNumber = tmp;                           // continue
+            blockNumber = fs->fat[blockNumber];     // start to free from next
+            if (blockNumber) {
+                uint32_t tmp = fs->super.avail;
+                fs->super.avail = blockNumber;      // prepend the remainings to the free list
+                while (fs->fat[blockNumber]) {
+                    blockNumber = fs->fat[blockNumber];
+                }
+                fs->fat[blockNumber] = tmp;
             }
         }
 
@@ -158,6 +161,7 @@ public:
             if (cnt == 0) return length - togo;
             p += cnt;
             togo -= cnt;
+            offset += cnt;
         }
         return length;
     }
@@ -165,12 +169,14 @@ public:
     int32_t writeFully(uint32_t offset, void* buf, uint32_t length) {
         char* p = (char*) buf;
         uint32_t togo = length;
+        // Debug::printf("write fully: %s\n", (char *)buf);
         while (togo) {
             int32_t cnt = write(offset,p,togo);
             if (cnt < 0) return cnt;
             if (cnt == 0) return length - togo;
             p += cnt;
             togo -= cnt;
+            offset += cnt;
         }
         return length;
     }
@@ -297,8 +303,12 @@ public:
         mutex.lock();
         Fat439 *fat = reinterpret_cast<Fat439*>(fs);
         int fileStart = fat->super.avail;
+        if (!fileStart) Debug::panic("not enough space on disk to create a new file!");
+
         fat->super.avail = fat->fat[fat->super.avail];
         fat->fat[fileStart] = 0;
+        // Debug::printf("==>>>> next avail: %u\n", fat->super.avail);
+        // Debug::printf("new file %s starts at %u\n", name, fileStart);
 
         // create meta data
         FileMetaData metaData;
@@ -316,7 +326,6 @@ public:
 
         OpenFile *openFile = fat->openFile(fileStart);
         Fat439File *file = new Fat439File(openFile);
-        fat->openFiles[fileStart] = openFile;
         this->entries++;
 
         // update the directory entry
@@ -331,6 +340,8 @@ public:
         uint32_t* firstBlock = (uint32_t *) &entry[12];
         *firstBlock = fileStart;
         content->writeFully(dirLength, (void*)entry, 16);
+
+        // Debug::printf("dirLength: %u\n", content->getLength());
 
         mutex.unlock();
         return file;

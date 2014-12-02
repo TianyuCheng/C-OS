@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 
     char buffer[512];
     while (length > 0) {
-        long cnt = read(fsrc, buffer, 512);
+        long cnt = readFully(fsrc, buffer, 512);
         if (cnt > 0) {
             length -= cnt;
             write(fdst, buffer, cnt);
